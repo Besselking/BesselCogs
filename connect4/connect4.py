@@ -23,7 +23,6 @@ class ConnectFour(commands.Cog):
 
         self.the_data = defaultdict(
             lambda: {
-                "running": False,
                 "red_turn": True,
                 "red_pieces": 0,
                 "yellow_pieces": 0,
@@ -37,10 +36,26 @@ class ConnectFour(commands.Cog):
 
     @commands.group(aliases=["setconnect4"])
     @checks.mod_or_permissions(administrator=True)
-    async def connect4set(self, ctx):
+    async def connect4set(self, ctx, empty, red, yellow):
         """Adjust Connect Four settings"""
-        if ctx.invoked_subcommand is None:
-            pass
+        message = ctx.message
+        for x in [empty, red, yellow]:
+            if x[:2] == "<:":
+                x = self.bot.get_emoji(int(x.split(":")[2][:-1]))
+
+            if x is None:
+                await ctx.send("I could not find that emoji")
+                return
+
+            try:
+                # Use the face as reaction to see if it's valid (THANKS FLAPJACK <3)
+                await message.add_reaction(x)
+            except discord.errors.HTTPException:
+                await ctx.send("That's not an emoji I recognize.")
+                return
+
+            await self.config.guild(ctx.guild).empty_cell.set(str(x))
+            await ctx.send("Cell emoji has been updated!")
 
     @connect4set.command()
     async def empty(self, ctx: commands.Context, theemoji):
@@ -118,17 +133,12 @@ class ConnectFour(commands.Cog):
                 )
             )
         else:
-            if self.the_data[ctx.guild]["running"]:
-                await ctx.send("Game of hangman is already running!\nEnter your guess!")
-                await self._printgame(ctx.channel)
-            else:
-                await ctx.send("Starting a game of Connect Four")
-                self._startgame(ctx.guild, ctx.author, opponent)
-                await self._printgame(ctx.channel)
+            await ctx.send("Starting a game of Connect Four")
+            self._startgame(ctx.guild, ctx.author, opponent)
+            await self._printgame(ctx.channel)
 
     def _startgame(self, guild, red_user, yellow_user):
         """Starts a new game of Connect Four"""
-        self.the_data[guild]["running"] = True
         self.the_data[guild]["red_turn"] = True
         self.the_data[guild]["pieces"] = np.full((5, 7, 2), False)
         self.the_data[guild]["trackmessage"] = False
