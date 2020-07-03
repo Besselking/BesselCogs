@@ -1,0 +1,23 @@
+{
+    "author": [
+        "Besselking"
+    ],
+    "bot_version": [
+        3,
+        0,
+        0
+    ],
+    "description": "Play Connect Four with your friends",
+    "hidden": false,
+    "install_msg": "Thank you for installing Connect Four! Get started with `[p]load connect4`, then `[p]help ConnectFour`",
+    "requirements": [
+        "numpy"
+    ],
+    "short": "Play Connect Four",
+    "tags": [
+        "game",
+        "fun",
+        "besselking",
+        "connect four"
+    ]
+}
