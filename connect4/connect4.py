@@ -39,7 +39,7 @@ class ConnectFour(commands.Cog):
     async def connect4set(self, ctx, empty, red, yellow):
         """Adjust Connect Four settings"""
         message = ctx.message
-        for x in [empty, red, yellow]:
+        for k, x in {"empty": empty, "red": red, "yellow": yellow}.items():
             if x[:2] == "<:":
                 x = self.bot.get_emoji(int(x.split(":")[2][:-1]))
 
@@ -54,8 +54,8 @@ class ConnectFour(commands.Cog):
                 await ctx.send("That's not an emoji I recognize.")
                 return
 
-            await self.config.guild(ctx.guild).empty_cell.set(str(x))
-            await ctx.send("Cell emoji has been updated!")
+            await self.config.guild(ctx.guild).get_attr("{}_cell".format(k)).set(str(x))
+            await ctx.send("{} cell emoji has been updated!".format(k.capitalize()))
 
     @connect4set.command()
     async def empty(self, ctx: commands.Context, theemoji):
