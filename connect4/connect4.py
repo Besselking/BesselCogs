@@ -4,6 +4,8 @@ from redbot.core import Config, commands, checks
 import discord
 import numpy as np
 
+import datetime
+
 
 class ConnectFour(commands.Cog):
     """My custom cog"""
@@ -17,6 +19,7 @@ class ConnectFour(commands.Cog):
             "empty_cell": ":blue_square:",
             "red_cell": ":red_circle:",
             "yellow_cell": ":yellow_circle:",
+            "timeout": 60,
         }
 
         self.config.register_guild(**default_guild)
@@ -29,6 +32,7 @@ class ConnectFour(commands.Cog):
                 "trackmessage": False,
                 "red_player": None,
                 "yellow_player": None,
+                "last_updated": False,
             }
         )
 
@@ -36,9 +40,15 @@ class ConnectFour(commands.Cog):
 
     @commands.group(aliases=["setconnect4"])
     @checks.mod_or_permissions(administrator=True)
-    async def connect4set(self, ctx, empty, red, yellow):
+    async def connect4set(self, ctx):
         """Adjust Connect Four settings"""
+        if ctx.invoked_subcommand is None:
+            pass
+
+    @connect4set.command()
+    async def emoji(self, ctx, empty, red, yellow):
         message = ctx.message
+
         for k, x in {"empty": empty, "red": red, "yellow": yellow}.items():
             if x[:2] == "<:":
                 x = self.bot.get_emoji(int(x.split(":")[2][:-1]))
@@ -102,6 +112,26 @@ class ConnectFour(commands.Cog):
         await ctx.send("Red cell has been updated!")
 
     @connect4set.command()
+    async def timeout(self, ctx: commands.Context, timeout: int):
+        """Set the timeout of an running game"""
+        message = ctx.message
+
+        timout_int = 0
+
+        try:
+            timeout_int = int(timeout)
+        except:
+            await ctx.send("Not a valid timeout value")
+            return
+
+        if timeout_int <= 0:
+            await ctx.send("Timeout value must be above 0")
+            return
+
+        await self.config.guild(ctx.guild).timeout.set(timeout_int)
+        await ctx.send("Timeout has been updated!")
+
+    @connect4set.command()
     async def yellow(self, ctx: commands.Context, theemoji):
         """Set the emoji of an yellow cell"""
         message = ctx.message
@@ -133,8 +163,21 @@ class ConnectFour(commands.Cog):
                 )
             )
         else:
-            if self.the_data[ctx.guild]["running"]:
-                await ctx.send("A game is already running on this server")
+            guild_conf = self.config.guild(ctx.guild)
+            timeout = await guild_conf.timeout()
+            if (
+                self.the_data[ctx.guild]["running"]
+                and (
+                    datetime.datetime.now() - self.the_data[ctx.guild]["last_updated"]
+                ).total_seconds()
+                < timeout
+            ):
+                delta_time = (
+                    datetime.datetime.now() - self.the_data[ctx.guild]["last_updated"]
+                )
+                await ctx.send(
+                    f"A game is already running on this server\nTime until timeout of running game: {timeout - int(delta_time.total_seconds())} seconds"
+                )
             else:
                 await ctx.send("Starting a game of Connect Four")
                 self._startgame(ctx.guild, ctx.author, opponent)
@@ -148,6 +191,7 @@ class ConnectFour(commands.Cog):
         self.the_data[guild]["trackmessage"] = False
         self.the_data[guild]["red_player"] = red_user
         self.the_data[guild]["yellow_player"] = yellow_user
+        self.the_data[guild]["last_updated"] = datetime.datetime.now()
 
     def _winning_rule(self, arr) -> bool:
         win1rule = np.array([1, 1, 1, 1])
@@ -213,6 +257,7 @@ class ConnectFour(commands.Cog):
             pieces[i, column_i] = player
 
         self.the_data[guild]["pieces"] = pieces
+        self.the_data[guild]["last_updated"] = datetime.datetime.now()
 
         if self._winning_check(guild, i, column_i):
             winning_player = "red_player" if red_turn else "yellow_player"
@@ -244,6 +289,14 @@ class ConnectFour(commands.Cog):
 
         message = reaction.message
         emoji = reaction.emoji
+
+        timeout = await self.config.guild(user.guild).timeout()
+
+        if (
+            datetime.datetime.now() - self.the_data[user.guild]["last_updated"]
+        ).total_seconds() > timeout:
+            await message.edit(content="This game has timed out")
+            return
 
         if str(emoji) in self.numbers:
             number = int("1234567"[self.numbers.index(str(emoji))])
