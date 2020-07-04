@@ -24,8 +24,8 @@ class ConnectFour(commands.Cog):
         self.the_data = defaultdict(
             lambda: {
                 "red_turn": True,
-                "red_pieces": 0,
-                "yellow_pieces": 0,
+                "pieces": False,
+                "running": False,
                 "trackmessage": False,
                 "red_player": None,
                 "yellow_player": None,
@@ -133,18 +133,60 @@ class ConnectFour(commands.Cog):
                 )
             )
         else:
-            await ctx.send("Starting a game of Connect Four")
-            self._startgame(ctx.guild, ctx.author, opponent)
-            await self._printgame(ctx.channel)
+            if self.the_data[ctx.guild]["running"]:
+                await ctx.send("A game is already running on this server")
+            else:
+                await ctx.send("Starting a game of Connect Four")
+                self._startgame(ctx.guild, ctx.author, opponent)
+                await self._printgame(ctx.channel)
 
     def _startgame(self, guild, red_user, yellow_user):
         """Starts a new game of Connect Four"""
         self.the_data[guild]["red_turn"] = True
-        self.the_data[guild]["pieces"] = np.full((5, 7, 2), False)
+        self.the_data[guild]["running"] = True
+        self.the_data[guild]["pieces"] = np.zeros((6, 7), dtype=int)
         self.the_data[guild]["trackmessage"] = False
         self.the_data[guild]["red_player"] = red_user
         self.the_data[guild]["yellow_player"] = yellow_user
-        self.winbool[guild] = False
+
+    def _winning_rule(self, arr) -> bool:
+        win1rule = np.array([1, 1, 1, 1])
+        win2rule = np.array([2, 2, 2, 2])
+        sub_arrays = [arr[i : i + 4] for i in range(len(arr) - 3)]
+
+        player1wins = any([np.array_equal(win1rule, sub) for sub in sub_arrays])
+        player2wins = any([np.array_equal(win2rule, sub) for sub in sub_arrays])
+
+        if player1wins or player2wins:
+            return True
+        else:
+            return False
+
+    def _get_axes(self, board, i, j) -> list:
+        axes = []
+        axes.append(board[i, :])
+        axes.append(board[:, j])
+        return axes
+
+    def _get_diagonals(self, board, i, j) -> list:
+        diags = []
+        diags.append(np.diagonal(board, offset=(j - i)))
+        diags.append(np.diagonal(np.rot90(board), offset=board.shape[1] + (j + i) + 1))
+        return diags
+
+    def _winning_check(self, guild, i, j) -> bool:
+        guild_data = self.the_data[guild]
+        pieces = guild_data["pieces"]
+        all_arr = []
+        all_arr.extend(self._get_axes(pieces, i, j))
+        all_arr.extend(self._get_diagonals(pieces, i, j))
+
+        for arr in all_arr:
+            winner = self._winning_rule(arr)
+            if winner:
+                return True
+            else:
+                pass
 
     async def _insert_in_column(self, column, message):
         """Inserts a disk into the given column and prints the game"""
@@ -154,16 +196,32 @@ class ConnectFour(commands.Cog):
         pieces = guild_data["pieces"]
         red_turn = guild_data["red_turn"]
 
-        for rn, row in enumerate(reversed(pieces)):
-            r, y = row[column - 1]
-            if not (r or y):
-                p = int(not red_turn)
-                pieces[-rn - 1][column - 1][p] = True
-                break
+        column_i = column - 1
 
-        self.the_data[guild]["red_turn"] = not red_turn
+        column_vec = pieces[:, column_i]
+        non_zero = np.where(column_vec != 0)[0]
+        player = 1 if red_turn else 2
+
+        if np.count_nonzero(pieces[:, column]) == 6:
+            return
+
+        if non_zero.size == 0:
+            i = pieces.shape[0] - 1
+            pieces[i, column_i] = player
+        else:
+            i = non_zero[0] - 1
+            pieces[i, column_i] = player
 
         self.the_data[guild]["pieces"] = pieces
+
+        if self._winning_check(guild, i, column_i):
+            winning_player = "red_player" if red_turn else "yellow_player"
+            await message.channel.send(
+                f"Player {guild_data[winning_player].mention} wins!"
+            )
+            self.the_data[guild]["running"] = False
+
+        self.the_data[guild]["red_turn"] = not red_turn
 
         await message.edit(content=await self._make_say(guild))
 
@@ -173,6 +231,9 @@ class ConnectFour(commands.Cog):
             return
 
         if user == self.bot.user:
+            return
+
+        if not self.the_data[user.guild]["running"]:
             return
 
         guild_data = self.the_data[user.guild]
@@ -205,9 +266,9 @@ class ConnectFour(commands.Cog):
         board = ["".join(self.numbers), "\n"]
         for row in pieces:
             for piece in row:
-                if piece[0]:
+                if piece == 1:
                     board.append(red_cell)
-                elif piece[1]:
+                elif piece == 2:
                     board.append(yellow_cell)
                 else:
                     board.append(empty_cell)
