@@ -114,9 +114,6 @@ class ConnectFour(commands.Cog):
     @connect4set.command()
     async def timeout(self, ctx: commands.Context, timeout: int):
         """Set the timeout of an running game"""
-        message = ctx.message
-
-        timout_int = 0
 
         try:
             timeout_int = int(timeout)
@@ -246,7 +243,9 @@ class ConnectFour(commands.Cog):
         non_zero = np.where(column_vec != 0)[0]
         player = 1 if red_turn else 2
 
-        if np.count_nonzero(pieces[:, column]) == 6:
+        self.the_data[guild]["last_updated"] = datetime.datetime.now()
+
+        if np.count_nonzero(pieces[:, column_i]) == 6:
             return
 
         if non_zero.size == 0:
@@ -257,7 +256,6 @@ class ConnectFour(commands.Cog):
             pieces[i, column_i] = player
 
         self.the_data[guild]["pieces"] = pieces
-        self.the_data[guild]["last_updated"] = datetime.datetime.now()
 
         if self._winning_check(guild, i, column_i):
             winning_player = "red_player" if red_turn else "yellow_player"
@@ -295,6 +293,7 @@ class ConnectFour(commands.Cog):
         if (
             datetime.datetime.now() - self.the_data[user.guild]["last_updated"]
         ).total_seconds() > timeout:
+            self.the_data[user.guild]["running"] = False
             await message.edit(content="This game has timed out")
             return
 
