@@ -1,0 +1,23 @@
+
+{
+    "author": [
+        "Besselking"
+    ],
+    "bot_version": [
+        3,
+        0,
+        0
+    ],
+    "description": "Zure room",
+    "hidden": false,
+    "install_msg": "Zure room",
+    "requirements": [
+    ],
+    "short": "Zure room",
+    "tags": [
+        "fun",
+        "besselking",
+        "meme",
+	"inside joke",
+    ]
+}

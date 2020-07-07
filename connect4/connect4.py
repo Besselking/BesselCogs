@@ -7,6 +7,10 @@ import numpy as np
 import datetime
 
 
+class EmojiException(Exception):
+    pass
+
+
 class ConnectFour(commands.Cog):
     """My custom cog"""
 
@@ -50,19 +54,11 @@ class ConnectFour(commands.Cog):
         message = ctx.message
 
         for k, x in {"empty": empty, "red": red, "yellow": yellow}.items():
-            if x[:2] == "<:":
-                x = self.bot.get_emoji(int(x.split(":")[2][:-1]))
-
-            if x is None:
-                await ctx.send("I could not find that emoji")
-                return
-
             try:
-                # Use the face as reaction to see if it's valid (THANKS FLAPJACK <3)
-                await message.add_reaction(x)
-            except discord.errors.HTTPException:
-                await ctx.send("That's not an emoji I recognize.")
-                return
+                self._validate_emoji(message, emoji)
+            except (EmojiException as e):
+                await ctx.send(e.message)
+                continue
 
             await self.config.guild(ctx.guild).get_attr("{}_cell".format(k)).set(str(x))
             await ctx.send("{} cell emoji has been updated!".format(k.capitalize()))
@@ -72,18 +68,10 @@ class ConnectFour(commands.Cog):
         """Set the emoji of an empty cell"""
         message = ctx.message
 
-        if theemoji[:2] == "<:":
-            theemoji = self.bot.get_emoji(int(theemoji.split(":")[2][:-1]))
-
-        if theemoji is None:
-            await ctx.send("I could not find that emoji")
-            return
-
         try:
-            # Use the face as reaction to see if it's valid (THANKS FLAPJACK <3)
-            await message.add_reaction(theemoji)
-        except discord.errors.HTTPException:
-            await ctx.send("That's not an emoji I recognize.")
+            self._validate_emoji(message, emoji)
+        except (EmojiException as e):
+            await ctx.send(e.message)
             return
 
         await self.config.guild(ctx.guild).empty_cell.set(str(theemoji))
@@ -94,18 +82,10 @@ class ConnectFour(commands.Cog):
         """Set the emoji of an red cell"""
         message = ctx.message
 
-        if theemoji[:2] == "<:":
-            theemoji = self.bot.get_emoji(int(theemoji.split(":")[2][:-1]))
-
-        if theemoji is None:
-            await ctx.send("I could not find that emoji")
-            return
-
         try:
-            # Use the face as reaction to see if it's valid (THANKS FLAPJACK <3)
-            await message.add_reaction(theemoji)
-        except discord.errors.HTTPException:
-            await ctx.send("That's not an emoji I recognize.")
+            self._validate_emoji(message, emoji)
+        except (EmojiException as e):
+            await ctx.send(e.message)
             return
 
         await self.config.guild(ctx.guild).red_cell.set(str(theemoji))
@@ -132,23 +112,28 @@ class ConnectFour(commands.Cog):
     async def yellow(self, ctx: commands.Context, theemoji):
         """Set the emoji of an yellow cell"""
         message = ctx.message
+        try:
+            self._validate_emoji(message, emoji)
+        except (EmojiException as e):
+            await ctx.send(e.message)
+            return
 
-        if theemoji[:2] == "<:":
-            theemoji = self.bot.get_emoji(int(theemoji.split(":")[2][:-1]))
+         self.config.guild(ctx.guild).yellow_cell.set(str(theemoji))
+        await ctx.send("Yellow cell has been updated!")
+
+    def _validate_emoji(self, message, emoji):
+        
+        if emoji[:2] == "<:":
+            emoji = self.bot.get_emoji(int(theemoji.split(":")[2][:-1]))
 
         if theemoji is None:
-            await ctx.send("I could not find that emoji")
-            return
+            raise EmojiException("I could not find that emoji")
 
         try:
             # Use the face as reaction to see if it's valid (THANKS FLAPJACK <3)
             await message.add_reaction(theemoji)
         except discord.errors.HTTPException:
-            await ctx.send("That's not an emoji I recognize.")
-            return
-
-        await self.config.guild(ctx.guild).yellow_cell.set(str(theemoji))
-        await ctx.send("Yellow cell has been updated!")
+            raise EmojiException("That's not an emoji I recognize.")
 
     @commands.command()
     async def connect4(self, ctx: commands.Context, opponent: discord.Member):
